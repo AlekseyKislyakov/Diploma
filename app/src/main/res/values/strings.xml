@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Diploma</string>
+    <string name="connect_description">Для использования устройства необходимо к нему подключиться. Список устройств представлен ниже</string>
+    <string name="connect_address">Адрес</string>
+    <string name="connect_name">Название</string>
+    <string name="connect_status">Статус</string>
+</resources>
