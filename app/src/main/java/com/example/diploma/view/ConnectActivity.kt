@@ -34,6 +34,7 @@ class ConnectActivity : AppCompatActivity() {
     private val REQUEST_ENABLE_BT = 1
 
     private val deviceAdapter = DeviceListAdapter()
+    private var currentDeviceAddress: String? = null
 
     var bluetoothConnection: BluetoothConnection? = null
 
@@ -52,13 +53,17 @@ class ConnectActivity : AppCompatActivity() {
 
         recyclerViewDeviceList.adapter = deviceAdapter
 
+        buttonConnect.setOnClickListener {
+            startActivity(ControlActivity.newIntent(this, currentDeviceAddress))
+        }
+
         compositeDisposable.add(deviceAdapter.relayClicks()
             .observeOn(AndroidSchedulers.mainThread())
             .subscribeOn(Schedulers.computation())
             .subscribe {
+                rxBluetooth.cancelDiscovery()
                 buttonConnect.isEnabled = false
                 deviceAdapter.setStatus(it, LoadingStatus.LOADING)
-
                 createConnection(it)
             })
 
@@ -73,6 +78,13 @@ class ConnectActivity : AppCompatActivity() {
                 }
             })
 
+    }
+
+    override fun onPause() {
+        super.onPause()
+        rxBluetooth.cancelDiscovery()
+        compositeDisposable.clear()
+        bluetoothConnection?.closeConnection()
     }
 
     override fun onDestroy() {
@@ -115,7 +127,9 @@ class ConnectActivity : AppCompatActivity() {
                 if (t1 != null) {
                     bluetoothConnection = BluetoothConnection(t1)
                     deviceAdapter.setStatus(device, LoadingStatus.SUCCESS)
+                    currentDeviceAddress = device.device.address
                     buttonConnect.isEnabled = true
+
                 } else {
                     deviceAdapter.setStatus(device, LoadingStatus.FAIL)
                     showErrorMessage(t2?.localizedMessage ?: "")

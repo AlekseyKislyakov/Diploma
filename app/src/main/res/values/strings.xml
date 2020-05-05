@@ -6,4 +6,8 @@
     <string name="connect_status">Статус</string>
     <string name="connect_connect">Подключиться</string>
     <string name="connect_bluetooth_forbidden">Разрешение на использование Bluetooth не предоставлено</string>
+    <string name="control_control">Управление</string>
+    <string name="control_current_device">Текущее устройство</string>
+    <string name="control_integrity_title">Целостность линий</string>
+    <string name="control_configure">Конфигурировать</string>
 </resources>
