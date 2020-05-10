@@ -10,9 +10,11 @@ import android.view.View
 import android.widget.Toast
 import com.example.diploma.R
 import com.example.diploma.adapters.IntegrityAdapter
+import com.example.diploma.adapters.RelayAdapter
 import com.example.diploma.entities.Device
 import com.example.diploma.entities.Integrity
 import com.example.diploma.entities.LoadingStatus
+import com.example.diploma.entities.MagnetRelay
 import com.github.ivbaranov.rxbluetooth.BluetoothConnection
 import com.github.ivbaranov.rxbluetooth.RxBluetooth
 import io.reactivex.Observable
@@ -42,6 +44,7 @@ class ControlActivity : AppCompatActivity() {
     var bluetoothConnection: BluetoothConnection? = null
 
     val integrityAdapter = IntegrityAdapter()
+    val relayAdapter = RelayAdapter()
 
     val PORT_1_ENABLED = "Line1true"
     val PORT_2_ENABLED = "Line2true"
@@ -49,6 +52,13 @@ class ControlActivity : AppCompatActivity() {
     val PORT_2_DISABLED = "Line2false"
     val PORT_1_BROKEN = "Line1broken"
     val PORT_2_BROKEN = "Line2broken"
+
+    val RELAY_1_ENABLED = "Relay1true"
+    val RELAY_2_ENABLED = "Relay2true"
+    val RELAY_3_ENABLED = "Relay3true"
+    val RELAY_1_DISABLED = "Relay1false"
+    val RELAY_2_DISABLED = "Relay2false"
+    val RELAY_3_DISABLED = "Relay3false"
 
     // SPP UUID сервиса
     private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
@@ -70,12 +80,20 @@ class ControlActivity : AppCompatActivity() {
         integrityAdapter.add(Integrity("Line", "1", false))
         integrityAdapter.add(Integrity("Line", "2", false))
 
+        relayAdapter.add(MagnetRelay("Relay", "1", false))
+        relayAdapter.add(MagnetRelay("Relay", "2", false))
+        relayAdapter.add(MagnetRelay("Relay", "2", false))
+
         integrityAdapter.startClicks().smartSubscribe {
             sendCommand(it.name + it.portNumber + !it.started)
         }
 
         integrityAdapter.moreClicks().smartSubscribe {
             Toast.makeText(this, it.name, Toast.LENGTH_SHORT).show()
+        }
+
+        relayAdapter.startClicks().smartSubscribe {
+            sendCommand(it.name + it.portNumber + !it.started)
         }
 
         layoutDescription.setOnClickListener {
@@ -157,6 +175,25 @@ class ControlActivity : AppCompatActivity() {
             }
             PORT_2_BROKEN -> {
                 integrityAdapter.setBroken(2, System.currentTimeMillis())
+            }
+
+            RELAY_1_ENABLED -> {
+                relayAdapter.setStatus(1, true)
+            }
+            RELAY_2_ENABLED -> {
+                relayAdapter.setStatus(2, true)
+            }
+            RELAY_3_ENABLED -> {
+                relayAdapter.setStatus(3, true)
+            }
+            RELAY_1_DISABLED -> {
+                relayAdapter.setStatus(1, false)
+            }
+            RELAY_2_DISABLED -> {
+                relayAdapter.setStatus(2, false)
+            }
+            RELAY_3_DISABLED -> {
+                relayAdapter.setStatus(3, false)
             }
         }
     }
