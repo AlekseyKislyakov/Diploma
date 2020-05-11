@@ -1,22 +1,18 @@
 package com.example.diploma.adapters
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.diploma.R
-import com.example.diploma.entities.MagnetRelay
+import com.example.diploma.entities.Record
 import com.jakewharton.rxrelay2.PublishRelay
-import io.reactivex.Observable
-import kotlinx.android.synthetic.main.item_relay.view.*
 
-class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+class RecordAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    var items = mutableListOf<MagnetRelay>()
+    var items = mutableListOf<Record>()
 
-    private val startClicksRelay = PublishRelay.create<MagnetRelay>().toSerialized()
-    private val moreClicksRelay = PublishRelay.create<MagnetRelay>().toSerialized()
+    private val startClicksRelay = PublishRelay.create<Record>().toSerialized()
+    private val moreClicksRelay = PublishRelay.create<Record>().toSerialized()
 
     companion object {
         private const val GAME_TYPE = 0
@@ -25,7 +21,7 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RelayViewHolder {
         return RelayViewHolder(
             LayoutInflater.from(parent.context).inflate(
-                R.layout.item_relay,
+                R.layout.item_record,
                 parent,
                 false
             )
@@ -42,7 +38,7 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         return GAME_TYPE
     }
 
-    fun add(newItem: MagnetRelay) {
+    fun add(newItem: Record) {
         if (!items.contains(newItem)) {
             items.add(newItem)
         }

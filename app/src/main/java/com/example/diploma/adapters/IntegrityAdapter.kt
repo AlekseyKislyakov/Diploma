@@ -1,10 +1,15 @@
 package com.example.diploma.adapters
 
+import android.content.Context
 import android.content.res.Resources
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.getSystemService
 import androidx.recyclerview.widget.RecyclerView
 import com.example.diploma.R
 import com.example.diploma.entities.Integrity
@@ -99,6 +104,7 @@ class IntegrityAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 startClicksRelay.accept(item)
                 if(!item.started) {
                     item.startedTime = System.currentTimeMillis()
+                    item.workTime = 0L
                     item.broken = false
                 } else {
                     item.broken = false

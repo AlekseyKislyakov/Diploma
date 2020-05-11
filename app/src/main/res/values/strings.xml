@@ -10,4 +10,7 @@
     <string name="control_current_device">Текущее устройство</string>
     <string name="control_integrity_title">Целостность линий</string>
     <string name="control_configure">Конфигурировать</string>
+    <string name="control_relay_title">Управление реле</string>
+    <string name="control_generator_title">Генерация сигналов</string>
+    <string name="control_record_title">Запись сигналов</string>
 </resources>
