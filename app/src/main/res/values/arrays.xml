@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="shape_list">
+        <item>SIN</item>
+        <item>SAW</item>
+        <item>SQU</item>
+        <item>LIN</item>
+    </string-array>
+</resources>

@@ -1,11 +1,17 @@
 package com.example.diploma.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.diploma.R
+import com.example.diploma.entities.LoadingStatus
 import com.example.diploma.entities.Record
+import com.example.diploma.ext.convertLongToTime
 import com.jakewharton.rxrelay2.PublishRelay
+import io.reactivex.Observable
+import kotlinx.android.synthetic.main.item_record.view.*
 
 class RecordAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -18,8 +24,8 @@ class RecordAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         private const val GAME_TYPE = 0
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RelayViewHolder {
-        return RelayViewHolder(
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecordViewHolder {
+        return RecordViewHolder(
             LayoutInflater.from(parent.context).inflate(
                 R.layout.item_record,
                 parent,
@@ -31,7 +37,7 @@ class RecordAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     override fun getItemCount(): Int = items.size
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        (holder as RelayViewHolder).bind(items[position])
+        (holder as RecordViewHolder).bind(items[position])
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -50,40 +56,75 @@ class RecordAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         notifyDataSetChanged()
     }
 
-    fun setStatus(port: Int, state: Boolean) {
-        items.find { port.toString() == it.portNumber }?.started = state
+    fun setStatus(port: Int, state: LoadingStatus) {
+        items.find { port.toString() == it.portNumber }?.apply {
+            started = state
+            if(state == LoadingStatus.NONE || state == LoadingStatus.FAIL) {
+                workTime = System.currentTimeMillis() - startedTime
+            }
+        }
         notifyDataSetChanged()
     }
 
-    fun startClicks(): Observable<MagnetRelay> = startClicksRelay
-    fun moreClicks(): Observable<MagnetRelay> = moreClicksRelay
+    fun updateItem(item: Record, period: Int) {
+        items.find { item.portNumber == it.portNumber }?.apply {
+            this.period = period
+        }
+        notifyDataSetChanged()
+    }
 
-    inner class RelayViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        fun bind(item: MagnetRelay) = with(itemView) {
-            textViewRelayTitle.text = "${item.name} ${item.portNumber}"
-
-            if(item.started) {
-                textViewRelayStatus.text = "Включен"
+    fun addRecord(port: Int, value: Int) {
+        items.find { port.toString() == it.portNumber }?.apply {
+            if (map.isNotEmpty()) {
+                map[map.keys.last() + this.period] = (value / 1023.0f) * this.maxAmpl
             } else {
-                textViewRelayStatus.text = "Выключен"
+                map[0] = (value / 1023) * this.maxAmpl
+            }
+        }
+    }
+
+    fun startClicks(): Observable<Record> = startClicksRelay
+    fun moreClicks(): Observable<Record> = moreClicksRelay
+
+    inner class RecordViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        fun bind(item: Record) = with(itemView) {
+            textViewRecordTitle.text = item.explicitName
+
+            if(item.started == LoadingStatus.SUCCESS) {
+                textViewRecordStatus.text = "Включен"
+            } else {
+                textViewRecordStatus.text = "Выключен"
             }
             when(item.started) {
-                true -> {
-                    buttonStartRelay.setBackgroundColor(ContextCompat.getColor(context, R.color.colorShamrock))
+                LoadingStatus.SUCCESS -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartRecord.visibility = View.VISIBLE
+                    buttonStartRecord.setBackgroundColor(ContextCompat.getColor(context, R.color.colorShamrock))
                 }
-                false -> {
-                    buttonStartRelay.setBackgroundColor(ContextCompat.getColor(context,R.color.colorSilver))
+                LoadingStatus.NONE -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartRecord.visibility = View.VISIBLE
+                    buttonStartRecord.setBackgroundResource(R.drawable.bg_silver_ripple)
+                }
+                LoadingStatus.LOADING -> {
+                    progressBarStartRecord.visibility = View.VISIBLE
+                    buttonStartRecord.visibility = View.GONE
                 }
             }
 
-            buttonStartRelay.setOnClickListener {
+            textViewRecordPeriod.text = item.period.toString()
+            textViewRecordStart.text = if(item.startedTime != 0L) item.startedTime.convertLongToTime() else "-"
+
+            buttonStartRecord.setOnClickListener {
                 startClicksRelay.accept(item)
-                if(!item.started) {
+                if(item.started == LoadingStatus.NONE) {
                     item.startedTime = System.currentTimeMillis()
                 }
+                notifyDataSetChanged()
             }
 
-            buttonConfigureRelay.setOnClickListener {
+
+            buttonConfigureRecord.setOnClickListener {
                 moreClicksRelay.accept(item)
             }
         }

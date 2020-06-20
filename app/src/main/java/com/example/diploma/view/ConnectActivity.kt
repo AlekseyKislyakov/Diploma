@@ -1,13 +1,8 @@
 package com.example.diploma.view
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
-import android.content.Intent
 import android.os.Bundle
-import android.os.PersistableBundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.diploma.R
@@ -19,14 +14,8 @@ import com.github.ivbaranov.rxbluetooth.RxBluetooth
 import com.tbruyelle.rxpermissions2.RxPermissions
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.functions.Consumer
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import java.io.IOException
-import java.io.OutputStream
 import java.util.*
 
 class ConnectActivity : AppCompatActivity() {
@@ -49,8 +38,6 @@ class ConnectActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        toolbar.inflateMenu(R.menu.menu_connect)
-
         recyclerViewDeviceList.adapter = deviceAdapter
 
         buttonConnect.setOnClickListener {
@@ -60,24 +47,24 @@ class ConnectActivity : AppCompatActivity() {
         compositeDisposable.add(deviceAdapter.relayClicks()
             .observeOn(AndroidSchedulers.mainThread())
             .subscribeOn(Schedulers.computation())
-            .subscribe {
+            .subscribe
+            {
                 rxBluetooth.cancelDiscovery()
                 buttonConnect.isEnabled = false
                 deviceAdapter.setStatus(it, LoadingStatus.LOADING)
                 createConnection(it)
             })
+        startBluetoothSequence()
 
-        compositeDisposable.add(rxPermissions
-            .requestEach(Manifest.permission.BLUETOOTH, Manifest.permission.ACCESS_COARSE_LOCATION)
-            .subscribe { granted ->
-                if (granted.granted) {
-                    enableBluetooth()
-                    startBluetoothDiscovery()
-                } else {
-                    showErrorMessage(getString(R.string.connect_bluetooth_forbidden))
+        toolbar.inflateMenu(R.menu.menu_connect)
+        toolbar.setOnMenuItemClickListener {
+            when (it.itemId) {
+                R.id.actionRefresh -> {
+                    startBluetoothSequence()
                 }
-            })
-
+            }
+            true
+        }
     }
 
     override fun onPause() {
@@ -91,6 +78,20 @@ class ConnectActivity : AppCompatActivity() {
         super.onDestroy()
         compositeDisposable.clear()
         bluetoothConnection?.closeConnection()
+    }
+
+    private fun startBluetoothSequence() {
+        compositeDisposable.add(rxPermissions
+            .requestEach(Manifest.permission.BLUETOOTH, Manifest.permission.ACCESS_COARSE_LOCATION)
+            .subscribe
+            { granted ->
+                if (granted.granted) {
+                    enableBluetooth()
+                    startBluetoothDiscovery()
+                } else {
+                    showErrorMessage(getString(R.string.connect_bluetooth_forbidden))
+                }
+            })
     }
 
     private fun enableBluetooth() {

@@ -55,7 +55,12 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     }
 
     fun setStatus(port: Int, state: Boolean) {
-        items.find { port.toString() == it.portNumber }?.started = state
+        items.find { port.toString() == it.portNumber }?.apply {
+            started = state
+            if(!state) {
+                workTime = System.currentTimeMillis() - startedTime
+            }
+        }
         notifyDataSetChanged()
     }
 
@@ -64,7 +69,7 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     inner class RelayViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         fun bind(item: MagnetRelay) = with(itemView) {
-            textViewRelayTitle.text = "${item.name} ${item.portNumber}"
+            textViewRelayTitle.text = item.explicitName
 
             if(item.started) {
                 textViewRelayStatus.text = "Включен"
@@ -76,7 +81,7 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                     buttonStartRelay.setBackgroundColor(ContextCompat.getColor(context, R.color.colorShamrock))
                 }
                 false -> {
-                    buttonStartRelay.setBackgroundColor(ContextCompat.getColor(context,R.color.colorSilver))
+                    buttonStartRelay.setBackgroundResource(R.drawable.bg_silver_ripple)
                 }
             }
 

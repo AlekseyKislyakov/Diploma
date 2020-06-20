@@ -5,5 +5,6 @@ data class MagnetRelay(
     var started: Boolean,
     var startedTime: Long = 0L,
     var workTime: Long = 0L,
-    val name: String = "Relay"
+    val name: String = "REL",
+    val explicitName: String = ""
 ): Entity

@@ -1,31 +1,52 @@
 package com.example.diploma.view
 
+import android.Manifest.permission.READ_EXTERNAL_STORAGE
+import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+import android.app.Activity
 import android.app.Dialog
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import com.example.diploma.R
+import com.example.diploma.adapters.GeneratorAdapter
 import com.example.diploma.adapters.IntegrityAdapter
+import com.example.diploma.adapters.RecordAdapter
 import com.example.diploma.adapters.RelayAdapter
 import com.example.diploma.entities.Entity
+import com.example.diploma.entities.Generator
 import com.example.diploma.entities.Integrity
 import com.example.diploma.entities.LoadingStatus
 import com.example.diploma.entities.MagnetRelay
+import com.example.diploma.entities.Record
+import com.example.diploma.entities.simplify
+import com.example.diploma.entities.toBoolean
+import com.example.diploma.ext.cleverAmpl
+import com.example.diploma.ext.cleverFreq
 import com.example.diploma.ext.convertLongToTime
-import com.example.diploma.ext.smartSubscribe
+import com.example.diploma.ext.convertLongToTimeUTC
 import com.example.diploma.ext.safeSmartSubscribe
+import com.example.diploma.ext.simplify
+import com.example.diploma.ext.smartSubscribe
+import com.example.diploma.ext.toPrettyValue
+import com.example.diploma.ext.toShapeId
+
 import com.github.ivbaranov.rxbluetooth.BluetoothConnection
 import com.github.ivbaranov.rxbluetooth.RxBluetooth
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.jjoe64.graphview.series.DataPoint
+import com.jjoe64.graphview.series.LineGraphSeries
+import com.nbsp.materialfilepicker.ui.FilePickerActivity
+import com.tbruyelle.rxpermissions2.RxPermissions
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -37,6 +58,8 @@ class ControlActivity : AppCompatActivity() {
 
     companion object {
         const val ADDRESS_EXTRA = "ADDRESS_EXTRA"
+
+        val FILE_PICKER_REQUEST_CODE = 1522
 
         fun newIntent(context: Context, deviceAddress: String?): Intent {
             return if (deviceAddress != null) {
@@ -55,32 +78,38 @@ class ControlActivity : AppCompatActivity() {
 
     val integrityAdapter = IntegrityAdapter()
     val relayAdapter = RelayAdapter()
+    val generatorAdapter = GeneratorAdapter()
+    val recordAdapter = RecordAdapter()
 
     var moreDialog: Dialog? = null
 
-    val PORT_1_ENABLED = "Line1true"
-    val PORT_2_ENABLED = "Line2true"
-    val PORT_1_DISABLED = "Line1false"
-    val PORT_2_DISABLED = "Line2false"
+    val PORT_1_ENABLED = "INT_0_1"
+    val PORT_2_ENABLED = "INT_1_1"
+    val PORT_1_DISABLED = "INT_0_0"
+    val PORT_2_DISABLED = "INT_1_0"
     val PORT_1_BROKEN = "Line1broken"
     val PORT_2_BROKEN = "Line2broken"
 
-    val RELAY_1_ENABLED = "Relay1true"
-    val RELAY_2_ENABLED = "Relay2true"
-    val RELAY_3_ENABLED = "Relay3true"
-    val RELAY_1_DISABLED = "Relay1false"
-    val RELAY_2_DISABLED = "Relay2false"
-    val RELAY_3_DISABLED = "Relay3false"
+    val RELAY_1_ENABLED = "REL_0_1"
+    val RELAY_2_ENABLED = "REL_1_1"
+    val RELAY_3_ENABLED = "REL_2_1"
+    val RELAY_1_DISABLED = "REL_0_0"
+    val RELAY_2_DISABLED = "REL_1_0"
+    val RELAY_3_DISABLED = "REL_2_0"
 
-    val RECORD_1_ENABLED = "Record1true"
-    val RECORD_2_ENABLED = "Record2true"
-    val RECORD_1_DISABLED = "Record1false"
-    val RECORD_2_DISABLED = "Record2false"
+    val RECORD_1_ENABLED = "REC_0_1"
+    val RECORD_2_ENABLED = "REC_1_1"
+    val RECORD_1_DISABLED = "REC_0_0"
+    val RECORD_2_DISABLED = "REC_1_0"
+    val RECORD_3_ENABLED = "REC_2_1"
+    val RECORD_4_ENABLED = "REC_3_1"
+    val RECORD_3_DISABLED = "REC_2_0"
+    val RECORD_4_DISABLED = "REC_3_0"
 
-    val GENERATOR_1_ENABLED = "Gener1true"
-    val GENERATOR_2_ENABLED = "Gener2true"
-    val GENERATOR_1_DISABLED = "Gener1false"
-    val GENERATOR_2_DISABLED = "Gener2false"
+    val GENERATOR_1_ENABLED = "GEN_0_1"
+    val GENERATOR_2_ENABLED = "GEN_1_1"
+    val GENERATOR_1_DISABLED = "GEN_0_0"
+    val GENERATOR_2_DISABLED = "GEN_1_0"
 
     val integrityCommands = listOf(
         PORT_1_ENABLED, PORT_2_ENABLED, PORT_1_DISABLED,
@@ -94,7 +123,9 @@ class ControlActivity : AppCompatActivity() {
 
     val recordCommands = listOf(
         RECORD_1_ENABLED, RECORD_2_ENABLED,
-        RECORD_1_DISABLED, RECORD_2_DISABLED
+        RECORD_1_DISABLED, RECORD_2_DISABLED,
+        RECORD_3_ENABLED, RECORD_4_ENABLED,
+        RECORD_3_DISABLED, RECORD_4_DISABLED
     )
 
     val generatorCommands = listOf(
@@ -106,6 +137,7 @@ class ControlActivity : AppCompatActivity() {
     private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     val rxBluetooth = RxBluetooth(this)
+    val rxPermissions = RxPermissions(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,25 +150,39 @@ class ControlActivity : AppCompatActivity() {
             startConnection(currentDevice)
         }
 
+        compositeDisposable.add(rxPermissions
+            .requestEach(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE)
+            .subscribe { granted ->
+                if (granted.granted) {
+
+                } else {
+                    showErrorMessage(getString(R.string.connect_bluetooth_forbidden))
+                }
+            })
+
         recyclerViewIntegrity.adapter = integrityAdapter
         recyclerViewRelay.adapter = relayAdapter
+        recyclerViewGenerator.adapter = generatorAdapter
+        recyclerViewRecord.adapter = recordAdapter
 
-        integrityAdapter.add(
-            Integrity(
-                portNumber = "1",
-                started = false,
-                workTime = 155561,
-                startedTime = System.currentTimeMillis()
-            )
-        )
-        integrityAdapter.add(Integrity(portNumber = "2", started = false))
+        integrityAdapter.add(Integrity(portNumber = "0", started = LoadingStatus.NONE, explicitName = "Ц1"))
+        integrityAdapter.add(Integrity(portNumber = "1", started = LoadingStatus.NONE, explicitName = "Ц2"))
 
-        relayAdapter.add(MagnetRelay("1", false))
-        relayAdapter.add(MagnetRelay("2", false))
-        relayAdapter.add(MagnetRelay("3", false))
+        relayAdapter.add(MagnetRelay("0", false, explicitName = "РЕЛЕ1"))
+        relayAdapter.add(MagnetRelay("1", false, explicitName = "РЕЛЕ2"))
+        relayAdapter.add(MagnetRelay("2", false, explicitName = "РЕЛЕ3"))
+
+        generatorAdapter.add(Generator("0", LoadingStatus.NONE, explicitName = "Г1"))
+        generatorAdapter.add(Generator("1", LoadingStatus.NONE, explicitName = "Г2"))
+
+        recordAdapter.add(Record("0", LoadingStatus.NONE, maxAmpl = 9.84f, explicitName = "ЗА1"))
+        recordAdapter.add(Record("1", LoadingStatus.NONE, maxAmpl = 55.8f, explicitName = "ЗА2"))
+        recordAdapter.add(Record("2", LoadingStatus.NONE, maxAmpl = 1023.0f, explicitName = "ЗЦ1"))
+        recordAdapter.add(Record("3", LoadingStatus.NONE, maxAmpl = 1023.0f, explicitName = "ЗЦ2"))
 
         integrityAdapter.startClicks().smartSubscribe(compositeDisposable) {
-            sendCommand(it.name + it.portNumber + !it.started)
+            sendCommand(it.name + "_" + it.portNumber + "_" + it.started.simplify())
+            it.started = LoadingStatus.LOADING
         }
 
         integrityAdapter.moreClicks().smartSubscribe(compositeDisposable) {
@@ -144,7 +190,32 @@ class ControlActivity : AppCompatActivity() {
         }
 
         relayAdapter.startClicks().smartSubscribe(compositeDisposable) {
-            sendCommand(it.name + it.portNumber + !it.started)
+            sendCommand(it.name + "_" + it.portNumber + "_" + (!it.started).simplify())
+        }
+
+        relayAdapter.moreClicks().smartSubscribe(compositeDisposable) {
+            createDialog(it)?.show()
+        }
+
+        generatorAdapter.startClicks().smartSubscribe(compositeDisposable) {
+            sendCommand(
+                "${it.name}_${it.portNumber}_${it.started.simplify()}_" +
+                        "${it.shape.toShapeId()}_${it.ampl.cleverAmpl()}_${it.freq.cleverFreq()}"
+            )
+            it.started = LoadingStatus.LOADING
+        }
+
+        generatorAdapter.moreClicks().smartSubscribe(compositeDisposable) {
+            createDialog(it)?.show()
+        }
+
+        recordAdapter.startClicks().smartSubscribe(compositeDisposable) {
+            sendCommand("${it.name}_${it.portNumber}_${it.started.simplify()}_${it.period}")
+            it.started = LoadingStatus.LOADING
+        }
+
+        recordAdapter.moreClicks().smartSubscribe(compositeDisposable) {
+            createDialog(it)?.show()
         }
 
         layoutDescription.setOnClickListener {
@@ -152,17 +223,31 @@ class ControlActivity : AppCompatActivity() {
         }
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 1 && resultCode == Activity.RESULT_OK) {
+            val filePath = data?.getStringExtra(FilePickerActivity.RESULT_FILE_PATH)
+            // Do anything with file
+        }
+    }
+
     private fun createDialog(entity: Entity): Dialog? {
         val dialogView = LayoutInflater.from(this)
             .inflate(R.layout.bottom_sheet_more, null)
 
-        dialogView?.let { dialogView ->
+        dialogView?.let { view ->
             when (entity) {
                 is Integrity -> {
-                    showIntegrityView(dialogView, entity)
+                    showIntegrityView(view, entity)
                 }
                 is MagnetRelay -> {
-                    showRelayView(dialogView, entity)
+                    showRelayView(view, entity)
+                }
+                is Generator -> {
+                    showGeneratorView(view, entity)
+                }
+                is Record -> {
+                    showRecordView(view, entity)
                 }
             }
 
@@ -226,7 +311,6 @@ class ControlActivity : AppCompatActivity() {
     }
 
     private fun handleCommand(command: String) {
-        Toast.makeText(this, command, Toast.LENGTH_SHORT).show()
         when (command) {
             in integrityCommands -> {
                 handleIntegrityCommand(command)
@@ -235,13 +319,15 @@ class ControlActivity : AppCompatActivity() {
                 handleRelayCommand(command)
             }
             in recordCommands -> {
-
+                handleRecordCommand(command)
             }
             in generatorCommands -> {
-
+                handleGeneratorCommand(command)
             }
             else -> {
-                parseCommand(command)
+                if (command.matches("^[R][0123][_][0-9]{1,4}".toRegex())) {
+                    parseRecordFeedback(command)
+                }
             }
         }
     }
@@ -250,33 +336,9 @@ class ControlActivity : AppCompatActivity() {
         bluetoothConnection?.send("$command\r")
     }
 
-    private fun parseCommand(command: String) {
+    private fun parseRecordFeedback(command: String) {
+        recordAdapter.addRecord(command[1].toInt() - 48, command.substring(3).toInt())
 
-    }
-
-    private fun handleIntegrityCommand(command: String) {
-        when (command) {
-            PORT_1_ENABLED -> {
-                integrityAdapter.setStatus(1, true)
-            }
-            PORT_1_DISABLED -> {
-                integrityAdapter.setStatus(1, false)
-            }
-            PORT_2_ENABLED -> {
-                integrityAdapter.setStatus(2, true)
-            }
-            PORT_2_DISABLED -> {
-                integrityAdapter.setStatus(2, false)
-            }
-            PORT_1_BROKEN -> {
-                vibrate()
-                integrityAdapter.setBroken(1, System.currentTimeMillis())
-            }
-            PORT_2_BROKEN -> {
-                vibrate()
-                integrityAdapter.setBroken(2, System.currentTimeMillis())
-            }
-        }
     }
 
     private fun showIntegrityView(view: View, integrity: Integrity) {
@@ -284,8 +346,8 @@ class ControlActivity : AppCompatActivity() {
             textViewSheetName.text = integrity.name
             textViewSheetPort.text = integrity.portNumber
 
-            textViewSheetStatus.text = if (integrity.started) "Включен" else "Выключен"
-            if (integrity.broken) {
+            textViewSheetStatus.text = if (integrity.started.toBoolean()) "Включен" else "Выключен"
+            if (integrity.started == LoadingStatus.FAIL) {
                 textViewSheetStatus.text = "Обрыв линии"
             }
 
@@ -294,7 +356,7 @@ class ControlActivity : AppCompatActivity() {
             }
 
             if (integrity.workTime != 0L) {
-                textViewSheetWorkTime.text = integrity.workTime.convertLongToTime()
+                textViewSheetWorkTime.text = integrity.workTime.convertLongToTimeUTC()
             }
         }
     }
@@ -311,7 +373,126 @@ class ControlActivity : AppCompatActivity() {
             }
 
             if (relay.workTime != 0L) {
-                textViewSheetWorkTime.text = relay.workTime.convertLongToTime()
+                textViewSheetWorkTime.text = relay.workTime.convertLongToTimeUTC()
+            }
+        }
+    }
+
+    private fun showGeneratorView(view: View, generator: Generator) {
+        with(view) {
+            textViewSheetName.text = generator.name
+            textViewSheetPort.text = generator.portNumber
+
+            textViewSheetStatus.text = if (generator.started.toBoolean()) "Включен" else "Выключен"
+
+            if (generator.startedTime != 0L) {
+                textViewSheetStartedTime.text = generator.startedTime.convertLongToTime()
+            }
+
+            if (generator.workTime != 0L) {
+                textViewSheetWorkTime.text = generator.workTime.convertLongToTimeUTC()
+            }
+
+            editTextAmplitude.setText(generator.ampl.toPrettyValue())
+            editTextFrequency.setText(generator.freq.toPrettyValue())
+
+            val spinnerAdapter =
+                ArrayAdapter.createFromResource(context, R.array.shape_list, android.R.layout.simple_spinner_item)
+            spinnerShape.adapter = spinnerAdapter
+            spinnerShape.setSelection(spinnerAdapter.getPosition(generator.shape))
+
+            textViewAdjustParameters.visibility = View.VISIBLE
+            layoutAmplitude.visibility = View.VISIBLE
+            layoutFrequency.visibility = View.VISIBLE
+            layoutSetSignal.visibility = View.VISIBLE
+
+            buttonApply.setOnClickListener {
+                var ampl = editTextAmplitude.text.toString().toFloat()
+                var freq = editTextFrequency.text.toString().toFloat()
+                val shape = spinnerShape.selectedItem.toString()
+
+                if (ampl > generator.maxAmpl) {
+                    ampl = generator.maxAmpl
+                    editTextAmplitude.setText(ampl.toString())
+                }
+
+                if (freq > generator.maxFreq) {
+                    freq = generator.maxFreq
+                    editTextFrequency.setText(freq.toString())
+                }
+
+                generatorAdapter.updateItem(generator, ampl, freq, shape)
+                Toast.makeText(context, "Сохранено!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showRecordView(view: View, record: Record) {
+        with(view) {
+            textViewSheetName.text = record.name
+            textViewSheetPort.text = record.portNumber
+
+            textViewSheetStatus.text = if (record.started.toBoolean()) "Включен" else "Выключен"
+
+            if (record.startedTime != 0L) {
+                textViewSheetStartedTime.text = record.startedTime.convertLongToTime()
+            }
+
+            if (record.workTime != 0L) {
+                textViewSheetWorkTime.text = record.workTime.convertLongToTimeUTC()
+            }
+
+            editTextPeriod.setText(record.period.toString())
+
+            textViewAdjustParameters.visibility = View.VISIBLE
+            layoutPeriod.visibility = View.VISIBLE
+            graph.visibility = View.VISIBLE
+
+            if (record.map.isNotEmpty()) {
+                var series = LineGraphSeries<DataPoint>()
+                record.map.forEach {
+                    series.appendData(DataPoint(it.key.toDouble() / 1000.0, it.value.toDouble()), true, record.map.size)
+                }
+                graph.addSeries(series)
+                graph.viewport.isScalable = true // enables horizontal zooming and scrolling
+                graph.viewport.setScalableY(true)
+                graph.viewport.setMaxX(record.map.keys.last() / 1000.0)
+            }
+            buttonApply.setOnClickListener {
+                var period = editTextPeriod.text.toString().toInt()
+
+                if (period < record.minPeriod) {
+                    period = record.minPeriod
+                    editTextFrequency.setText(period.toString())
+                }
+
+                recordAdapter.updateItem(record, period)
+                Toast.makeText(context, "Сохранено!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun handleIntegrityCommand(command: String) {
+        when (command) {
+            PORT_1_ENABLED -> {
+                integrityAdapter.setStatus(0, LoadingStatus.SUCCESS)
+            }
+            PORT_1_DISABLED -> {
+                integrityAdapter.setStatus(0, LoadingStatus.NONE)
+            }
+            PORT_2_ENABLED -> {
+                integrityAdapter.setStatus(1, LoadingStatus.SUCCESS)
+            }
+            PORT_2_DISABLED -> {
+                integrityAdapter.setStatus(1, LoadingStatus.NONE)
+            }
+            PORT_1_BROKEN -> {
+                vibrate()
+                integrityAdapter.setStatus(0, LoadingStatus.FAIL)
+            }
+            PORT_2_BROKEN -> {
+                vibrate()
+                integrityAdapter.setStatus(1, LoadingStatus.FAIL)
             }
         }
     }
@@ -319,22 +500,68 @@ class ControlActivity : AppCompatActivity() {
     private fun handleRelayCommand(command: String) {
         when (command) {
             RELAY_1_ENABLED -> {
-                relayAdapter.setStatus(1, true)
+                relayAdapter.setStatus(0, true)
             }
             RELAY_2_ENABLED -> {
-                relayAdapter.setStatus(2, true)
+                relayAdapter.setStatus(1, true)
             }
             RELAY_3_ENABLED -> {
-                relayAdapter.setStatus(3, true)
+                relayAdapter.setStatus(2, true)
             }
             RELAY_1_DISABLED -> {
-                relayAdapter.setStatus(1, false)
+                relayAdapter.setStatus(0, false)
             }
             RELAY_2_DISABLED -> {
-                relayAdapter.setStatus(2, false)
+                relayAdapter.setStatus(1, false)
             }
             RELAY_3_DISABLED -> {
-                relayAdapter.setStatus(3, false)
+                relayAdapter.setStatus(2, false)
+            }
+        }
+    }
+
+    private fun handleGeneratorCommand(command: String) {
+        when (command) {
+            GENERATOR_1_ENABLED -> {
+                generatorAdapter.setStatus(0, LoadingStatus.SUCCESS)
+            }
+            GENERATOR_2_ENABLED -> {
+                generatorAdapter.setStatus(1, LoadingStatus.SUCCESS)
+            }
+            GENERATOR_1_DISABLED -> {
+                generatorAdapter.setStatus(0, LoadingStatus.NONE)
+            }
+            GENERATOR_2_DISABLED -> {
+                generatorAdapter.setStatus(1, LoadingStatus.NONE)
+            }
+        }
+    }
+
+    private fun handleRecordCommand(command: String) {
+        when (command) {
+            RECORD_1_ENABLED -> {
+                recordAdapter.setStatus(0, LoadingStatus.SUCCESS)
+            }
+            RECORD_1_DISABLED -> {
+                recordAdapter.setStatus(0, LoadingStatus.NONE)
+            }
+            RECORD_2_ENABLED -> {
+                recordAdapter.setStatus(1, LoadingStatus.SUCCESS)
+            }
+            RECORD_2_DISABLED -> {
+                recordAdapter.setStatus(1, LoadingStatus.NONE)
+            }
+            RECORD_3_ENABLED -> {
+                recordAdapter.setStatus(2, LoadingStatus.SUCCESS)
+            }
+            RECORD_3_DISABLED -> {
+                recordAdapter.setStatus(2, LoadingStatus.NONE)
+            }
+            RECORD_4_ENABLED -> {
+                recordAdapter.setStatus(3, LoadingStatus.SUCCESS)
+            }
+            RECORD_4_DISABLED -> {
+                recordAdapter.setStatus(3, LoadingStatus.NONE)
             }
         }
     }
@@ -347,5 +574,10 @@ class ControlActivity : AppCompatActivity() {
             vibrator.vibrate(200)
         }
     }
+
+    private fun showErrorMessage(err: String) {
+        Toast.makeText(this, err, Toast.LENGTH_LONG).show()
+    }
 }
+
 

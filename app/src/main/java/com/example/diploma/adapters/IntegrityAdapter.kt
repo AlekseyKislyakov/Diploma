@@ -13,9 +13,12 @@ import androidx.core.content.ContextCompat.getSystemService
 import androidx.recyclerview.widget.RecyclerView
 import com.example.diploma.R
 import com.example.diploma.entities.Integrity
+import com.example.diploma.entities.LoadingStatus
 import com.jakewharton.rxrelay2.PublishRelay
 import io.reactivex.Observable
+import kotlinx.android.synthetic.main.item_generator.view.*
 import kotlinx.android.synthetic.main.item_integrity.view.*
+import kotlinx.android.synthetic.main.item_integrity.view.progressBarStartRecord
 import java.util.*
 
 class IntegrityAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -61,17 +64,14 @@ class IntegrityAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         notifyDataSetChanged()
     }
 
-    fun setStatus(port: Int, state: Boolean) {
-        items.find { port.toString() == it.portNumber }?.started = state
-        notifyDataSetChanged()
-    }
-
-    fun setBroken(port: Int, time: Long) {
-        items.find { port.toString() == it.portNumber }?.let {
-            it.broken = true
-            it.workTime = time - it.startedTime
-            notifyDataSetChanged()
+    fun setStatus(port: Int, state: LoadingStatus) {
+        items.find { port.toString() == it.portNumber }?.apply {
+            started = state
+            if(state == LoadingStatus.NONE || state == LoadingStatus.FAIL) {
+                workTime = System.currentTimeMillis() - startedTime
+            }
         }
+        notifyDataSetChanged()
     }
 
     fun startClicks(): Observable<Integrity> = startClicksRelay
@@ -79,37 +79,54 @@ class IntegrityAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     inner class IntegrityViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         fun bind(item: Integrity) = with(itemView) {
-            textViewIntegrityTitle.text = "${item.name} ${item.portNumber}"
+            textViewIntegrityTitle.text = item.explicitName
 
-            if(item.started) {
+            if(item.started == LoadingStatus.SUCCESS) {
                 textViewIntegrityStatus.text = "Включен"
             } else {
                 textViewIntegrityStatus.text = "Выключен"
             }
             when(item.started) {
-                true -> {
+                LoadingStatus.SUCCESS -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartIntegrity.visibility = View.VISIBLE
                     buttonStartIntegrity.setBackgroundColor(ContextCompat.getColor(context, R.color.colorShamrock))
                 }
-                false -> {
-                    buttonStartIntegrity.setBackgroundColor(ContextCompat.getColor(context,R.color.colorSilver))
+                LoadingStatus.NONE -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartIntegrity.visibility = View.VISIBLE
+                    buttonStartIntegrity.setBackgroundResource(R.drawable.bg_silver_ripple)
                 }
-            }
-
-            if(item.broken) {
-                buttonStartIntegrity.setBackgroundColor(ContextCompat.getColor(context,R.color.colorRed))
-                textViewIntegrityStatus.text = "Обрыв линии!"
+                LoadingStatus.LOADING -> {
+                    progressBarStartRecord.visibility = View.VISIBLE
+                    buttonStartIntegrity.visibility = View.GONE
+                }
+                LoadingStatus.FAIL -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartIntegrity.visibility = View.VISIBLE
+                    buttonStartIntegrity.setBackgroundColor(ContextCompat.getColor(context,R.color.colorRed))
+                    textViewIntegrityStatus.text = "Обрыв линии!"
+                }
             }
 
             buttonStartIntegrity.setOnClickListener {
                 startClicksRelay.accept(item)
-                if(!item.started) {
+                if(item.started == LoadingStatus.NONE) {
                     item.startedTime = System.currentTimeMillis()
-                    item.workTime = 0L
-                    item.broken = false
-                } else {
-                    item.broken = false
                 }
+                notifyDataSetChanged()
             }
+
+//            buttonStartIntegrity.setOnClickListener {
+//                startClicksRelay.accept(item)
+//                if(!item.started) {
+//                    item.startedTime = System.currentTimeMillis()
+//                    item.workTime = 0L
+//                    item.broken = false
+//                } else {
+//                    item.broken = false
+//                }
+//            }
 
             buttonConfigureIntegrity.setOnClickListener {
                 moreClicksRelay.accept(item)

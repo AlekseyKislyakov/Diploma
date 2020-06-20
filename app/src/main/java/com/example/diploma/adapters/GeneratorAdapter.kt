@@ -4,9 +4,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import com.example.diploma.R
 import com.example.diploma.entities.Generator
+import com.example.diploma.entities.LoadingStatus
 import com.example.diploma.entities.MagnetRelay
 import com.example.diploma.ext.prettyValue
 import com.jakewharton.rxrelay2.PublishRelay
@@ -51,13 +53,27 @@ class GeneratorAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         notifyDataSetChanged()
     }
 
+    fun updateItem(item: Generator, ampl: Float, freq: Float, shape: String) {
+        items.find { item.portNumber == it.portNumber }?.apply {
+            this.ampl = ampl
+            this.freq = freq
+            this.shape = shape
+        }
+        notifyDataSetChanged()
+    }
+
     fun clearItems() {
         items.clear()
         notifyDataSetChanged()
     }
 
-    fun setStatus(port: Int, state: Boolean) {
-        items.find { port.toString() == it.portNumber }?.started = state
+    fun setStatus(port: Int, state: LoadingStatus) {
+        items.find { port.toString() == it.portNumber }?.apply {
+            started = state
+            if(state == LoadingStatus.NONE || state == LoadingStatus.FAIL) {
+                workTime = System.currentTimeMillis() - startedTime
+            }
+        }
         notifyDataSetChanged()
     }
 
@@ -66,31 +82,40 @@ class GeneratorAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     inner class GeneratorViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         fun bind(item: Generator) = with(itemView) {
-            textViewGeneratorTitle.text = "${item.name} ${item.portNumber}"
+            textViewGeneratorTitle.text = item.explicitName
 
-            if(item.started) {
+            if(item.started == LoadingStatus.SUCCESS) {
                 textViewGeneratorStatus.text = "Включен"
             } else {
                 textViewGeneratorStatus.text = "Выключен"
             }
             when(item.started) {
-                true -> {
+                LoadingStatus.SUCCESS -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartGenerator.visibility = View.VISIBLE
                     buttonStartGenerator.setBackgroundColor(ContextCompat.getColor(context, R.color.colorShamrock))
                 }
-                false -> {
-                    buttonStartGenerator.setBackgroundColor(ContextCompat.getColor(context,R.color.colorSilver))
+                LoadingStatus.NONE -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartGenerator.visibility = View.VISIBLE
+                    buttonStartGenerator.setBackgroundResource(R.drawable.bg_silver_ripple)
+                }
+                LoadingStatus.LOADING -> {
+                    progressBarStartRecord.visibility = View.VISIBLE
+                    buttonStartGenerator.visibility = View.GONE
                 }
             }
 
             textViewGeneratorAmplitude.text = item.ampl.prettyValue()
             textViewGeneratorFrequency.text = item.freq.prettyValue()
-            textViewGeneratorShape.text = item.shape.toString()
+            textViewGeneratorShape.text = item.shape
 
             buttonStartGenerator.setOnClickListener {
                 startClicksRelay.accept(item)
-                if(!item.started) {
+                if(item.started == LoadingStatus.NONE) {
                     item.startedTime = System.currentTimeMillis()
                 }
+                notifyDataSetChanged()
             }
 
             buttonConfigureGenerator.setOnClickListener {

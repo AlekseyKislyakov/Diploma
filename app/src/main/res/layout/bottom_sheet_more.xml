@@ -188,7 +188,7 @@
                 android:layout_gravity="center"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:inputType="number"
+                android:inputType="numberDecimal"
                 android:hint="0 В"
                 android:layout_weight="1"/>
         </LinearLayout>
@@ -219,8 +219,39 @@
                 android:layout_gravity="center"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
-                android:inputType="number"
+                android:inputType="numberDecimal"
                 android:hint="0 Гц"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutPeriod"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible" >
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:textColor="@color/colorGrey"
+                android:text="Период записи"
+                android:layout_gravity="center"
+                android:layout_weight="1"/>
+
+            <EditText
+                android:id="@+id/editTextPeriod"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:layout_gravity="center"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:inputType="numberDecimal"
+                android:hint="0 мс"
                 android:layout_weight="1"/>
         </LinearLayout>
 
@@ -243,7 +274,7 @@
                 android:layout_weight="1"/>
 
             <Spinner
-                android:id="@+id/button"
+                android:id="@+id/spinnerShape"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:textSize="14sp"
@@ -319,8 +350,22 @@
                 android:layout_weight="1"/>
         </LinearLayout>
 
+        <Button
+            style="@style/Button"
+            android:id="@+id/buttonApply"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:textSize="14sp"
+            android:text="Сохранить изменения"
+            android:layout_gravity="center"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="30dp"/>
+
         <com.jjoe64.graphview.GraphView
             android:id="@+id/graph"
+            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="200dp" />
     </LinearLayout>
