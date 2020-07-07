@@ -168,9 +168,9 @@ class ControlActivity : AppCompatActivity() {
         integrityAdapter.add(Integrity(portNumber = "0", started = LoadingStatus.NONE, explicitName = "Ц1"))
         integrityAdapter.add(Integrity(portNumber = "1", started = LoadingStatus.NONE, explicitName = "Ц2"))
 
-        relayAdapter.add(MagnetRelay("0", false, explicitName = "РЕЛЕ1"))
-        relayAdapter.add(MagnetRelay("1", false, explicitName = "РЕЛЕ2"))
-        relayAdapter.add(MagnetRelay("2", false, explicitName = "РЕЛЕ3"))
+        relayAdapter.add(MagnetRelay("0", started = LoadingStatus.NONE, explicitName = "РЕЛЕ1"))
+        relayAdapter.add(MagnetRelay("1", started = LoadingStatus.NONE, explicitName = "РЕЛЕ2"))
+        relayAdapter.add(MagnetRelay("2", started = LoadingStatus.NONE, explicitName = "РЕЛЕ3"))
 
         generatorAdapter.add(Generator("0", LoadingStatus.NONE, explicitName = "Г1"))
         generatorAdapter.add(Generator("1", LoadingStatus.NONE, explicitName = "Г2"))
@@ -190,7 +190,8 @@ class ControlActivity : AppCompatActivity() {
         }
 
         relayAdapter.startClicks().smartSubscribe(compositeDisposable) {
-            sendCommand(it.name + "_" + it.portNumber + "_" + (!it.started).simplify())
+            sendCommand(it.name + "_" + it.portNumber + "_" + it.started.simplify())
+            it.started = LoadingStatus.LOADING
         }
 
         relayAdapter.moreClicks().smartSubscribe(compositeDisposable) {
@@ -366,7 +367,7 @@ class ControlActivity : AppCompatActivity() {
             textViewSheetName.text = relay.name
             textViewSheetPort.text = relay.portNumber
 
-            textViewSheetStatus.text = if (relay.started) "Включен" else "Выключен"
+            textViewSheetStatus.text = if (relay.started.toBoolean()) "Включен" else "Выключен"
 
             if (relay.startedTime != 0L) {
                 textViewSheetStartedTime.text = relay.startedTime.convertLongToTime()
@@ -500,22 +501,22 @@ class ControlActivity : AppCompatActivity() {
     private fun handleRelayCommand(command: String) {
         when (command) {
             RELAY_1_ENABLED -> {
-                relayAdapter.setStatus(0, true)
+                relayAdapter.setStatus(0, LoadingStatus.SUCCESS)
             }
             RELAY_2_ENABLED -> {
-                relayAdapter.setStatus(1, true)
+                relayAdapter.setStatus(1, LoadingStatus.SUCCESS)
             }
             RELAY_3_ENABLED -> {
-                relayAdapter.setStatus(2, true)
+                relayAdapter.setStatus(2, LoadingStatus.SUCCESS)
             }
             RELAY_1_DISABLED -> {
-                relayAdapter.setStatus(0, false)
+                relayAdapter.setStatus(0, LoadingStatus.NONE)
             }
             RELAY_2_DISABLED -> {
-                relayAdapter.setStatus(1, false)
+                relayAdapter.setStatus(1, LoadingStatus.NONE)
             }
             RELAY_3_DISABLED -> {
-                relayAdapter.setStatus(2, false)
+                relayAdapter.setStatus(2, LoadingStatus.NONE)
             }
         }
     }

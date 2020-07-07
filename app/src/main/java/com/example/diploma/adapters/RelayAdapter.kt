@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.diploma.R
+import com.example.diploma.entities.LoadingStatus
 import com.example.diploma.entities.MagnetRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import io.reactivex.Observable
@@ -54,10 +55,10 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         notifyDataSetChanged()
     }
 
-    fun setStatus(port: Int, state: Boolean) {
+    fun setStatus(port: Int, state: LoadingStatus) {
         items.find { port.toString() == it.portNumber }?.apply {
             started = state
-            if(!state) {
+            if(state == LoadingStatus.NONE || state == LoadingStatus.FAIL) {
                 workTime = System.currentTimeMillis() - startedTime
             }
         }
@@ -71,25 +72,34 @@ class RelayAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         fun bind(item: MagnetRelay) = with(itemView) {
             textViewRelayTitle.text = item.explicitName
 
-            if(item.started) {
+            if(item.started == LoadingStatus.SUCCESS) {
                 textViewRelayStatus.text = "Включен"
             } else {
                 textViewRelayStatus.text = "Выключен"
             }
             when(item.started) {
-                true -> {
+                LoadingStatus.SUCCESS -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartRelay.visibility = View.VISIBLE
                     buttonStartRelay.setBackgroundColor(ContextCompat.getColor(context, R.color.colorShamrock))
                 }
-                false -> {
+                LoadingStatus.NONE -> {
+                    progressBarStartRecord.visibility = View.GONE
+                    buttonStartRelay.visibility = View.VISIBLE
                     buttonStartRelay.setBackgroundResource(R.drawable.bg_silver_ripple)
+                }
+                LoadingStatus.LOADING -> {
+                    progressBarStartRecord.visibility = View.VISIBLE
+                    buttonStartRelay.visibility = View.GONE
                 }
             }
 
             buttonStartRelay.setOnClickListener {
                 startClicksRelay.accept(item)
-                if(!item.started) {
+                if(item.started == LoadingStatus.NONE) {
                     item.startedTime = System.currentTimeMillis()
                 }
+                notifyDataSetChanged()
             }
 
             buttonConfigureRelay.setOnClickListener {
